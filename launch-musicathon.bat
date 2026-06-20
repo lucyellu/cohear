@@ -5,17 +5,8 @@ set WEB=5173
 set API=5001
 set DIR=%~dp0
 
-rem --- Fast path: if a healthy stack is already up (BOTH ports), just open ----
-set WEBUP=
-set APIUP=
-netstat -ano | findstr ":%WEB% " | findstr LISTENING >nul 2>&1 && set WEBUP=1
-netstat -ano | findstr ":%API% " | findstr LISTENING >nul 2>&1 && set APIUP=1
-if defined WEBUP if defined APIUP (
-    echo Cohear already running. Opening...
-    goto open
-)
-
-rem --- Otherwise clean up stale/partial Cohear processes so they don't pile up.
+rem --- Always restart this checkout so Cohear.lnk never opens a stale server
+rem from another musicathon/Cohere working copy on the same ports.
 rem Matches ONLY this project's dev stack; spares qmd and any other node app.
 echo Cleaning up old Cohear processes...
 powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'name=''node.exe''' | Where-Object { $_.CommandLine -and ($_.CommandLine -match 'musicathon|concurrently|dev:gateway|dev:web|api-gateway|server\.js') -and ($_.CommandLine -notmatch 'qmd') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1

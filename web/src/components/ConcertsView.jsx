@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchConcerts, getCachedConcerts, filterWhen, spotifyArtist, ticketmasterMatch, ticketWebEstimate, C_SORTS, defaultDir } from '../concerts.js';
 import { fmtCapacity, fmtDate } from '../tour.js';
 import { loadGoogleMaps, hasMapsKey } from '../live/maps.js';
-import { claimStamp, markAttended, recordConcertAction } from '../account.js';
+import { claimStamp, optOutConcert, recordConcertAction } from '../account.js';
 
 const VIEW_MODES = [
   { id: 'list', label: 'List' },
@@ -262,15 +262,18 @@ export default function ConcertsView({ onEnterShow, onSyncLive, settings, onSett
   const visible = useMemo(() => {
     const search = query.trim().toLowerCase();
     const loc = location.trim().toLowerCase();
+    const graceMs = (settings?.endedGraceHours ?? 2) * 3600_000;
     const base = browse ? concerts : filterWhen(concerts, when);
     const filtered = base.filter((c) => {
-      if (hideEnded && showState(c, now).ended) return false;
+      const st = showState(c, now);
+      // Hide a show only once it's ended AND past the configured grace window.
+      if (hideEnded && st.ended && st.end && now - st.end > graceMs) return false;
       const haystack = [c.artist, c.venue, c.city, c.region, c.country].filter(Boolean).join(' ').toLowerCase();
       const locationText = [c.city, c.region, c.country, c.venue].filter(Boolean).join(' ').toLowerCase();
       return (!search || haystack.includes(search)) && (!loc || locationText.includes(loc));
     });
     return sortVisibleConcerts(filtered, sortKey, dir, userZone);
-  }, [artist, browse, concerts, dir, hideEnded, location, now, query, sortKey, userZone, when]);
+  }, [artist, browse, concerts, dir, hideEnded, location, now, query, settings?.endedGraceHours, sortKey, userZone, when]);
 
   useEffect(() => {
     if (!visible.length) return;
@@ -806,11 +809,11 @@ function ConcertInspector({ concert, saved, sources, userZone, currency, now, on
 
         <div className="grid gap-2">
           <div className="grid grid-cols-2 gap-2">
-            <button className="cohear-secondary w-full justify-center" onClick={() => markAttended(concert)}>
-              I was here
-            </button>
             <button className="cohear-secondary w-full justify-center" onClick={() => claimStamp(concert)}>
               Claim stamp
+            </button>
+            <button className="cohear-secondary w-full justify-center" onClick={() => optOutConcert(concert)} title="Remove this show from your passport">
+              I was never here
             </button>
           </div>
           {onEnterShow && (
